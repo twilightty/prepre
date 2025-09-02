@@ -3,12 +3,13 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 
+	"jinzmedia-atmt/auth"
 	"jinzmedia-atmt/models"
 	"jinzmedia-atmt/services"
 )
@@ -26,21 +27,19 @@ func NewDownloadHandlers() *DownloadHandlers {
 // ListProducts returns available products and user info
 func (dh *DownloadHandlers) ListProducts(w http.ResponseWriter, r *http.Request) {
 	// Get user from context (set by auth middleware)
-	userIDStr, ok := r.Context().Value("user_id").(string)
-	if !ok {
+	user := auth.GetUserFromContext(r.Context())
+	if user == nil {
+		log.Printf("DOWNLOAD ERROR: User not found in context for %s %s", r.Method, r.URL.Path)
 		writeErrorResponse(w, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
 
-	userID, err := primitive.ObjectIDFromHex(userIDStr)
-	if err != nil {
-		writeErrorResponse(w, http.StatusBadRequest, "Invalid user ID")
-		return
-	}
+	log.Printf("DOWNLOAD DEBUG: User %s requesting products list", user.Email)
 
 	// Get products and user info
-	response, err := dh.downloadService.GetProductsAndUserInfo(userID)
+	response, err := dh.downloadService.GetProductsAndUserInfo(user.ID)
 	if err != nil {
+		log.Printf("DOWNLOAD ERROR: Failed to get products for user %s: %v", user.Email, err)
 		writeErrorResponse(w, http.StatusInternalServerError, "Failed to get products: "+err.Error())
 		return
 	}
@@ -52,15 +51,10 @@ func (dh *DownloadHandlers) ListProducts(w http.ResponseWriter, r *http.Request)
 // DownloadProduct serves product files for authenticated users
 func (dh *DownloadHandlers) DownloadProduct(w http.ResponseWriter, r *http.Request) {
 	// Get user from context (set by auth middleware)
-	userIDStr, ok := r.Context().Value("user_id").(string)
-	if !ok {
+	user := auth.GetUserFromContext(r.Context())
+	if user == nil {
+		log.Printf("DOWNLOAD ERROR: User not found in context for %s %s", r.Method, r.URL.Path)
 		writeErrorResponse(w, http.StatusUnauthorized, "User not authenticated")
-		return
-	}
-
-	userID, err := primitive.ObjectIDFromHex(userIDStr)
-	if err != nil {
-		writeErrorResponse(w, http.StatusBadRequest, "Invalid user ID")
 		return
 	}
 
@@ -69,12 +63,16 @@ func (dh *DownloadHandlers) DownloadProduct(w http.ResponseWriter, r *http.Reque
 	platform := chi.URLParam(r, "platform")
 	serial := r.URL.Query().Get("serial")
 
+	log.Printf("DOWNLOAD DEBUG: User %s requesting %s/%s with serial %s", user.Email, productName, platform, serial)
+
 	if productName == "" {
+		log.Printf("DOWNLOAD ERROR: Missing product name for user %s", user.Email)
 		writeErrorResponse(w, http.StatusBadRequest, "Product name is required")
 		return
 	}
 
 	if platform == "" {
+		log.Printf("DOWNLOAD ERROR: Missing platform for user %s", user.Email)
 		writeErrorResponse(w, http.StatusBadRequest, "Platform is required")
 		return
 	}
@@ -92,13 +90,18 @@ func (dh *DownloadHandlers) DownloadProduct(w http.ResponseWriter, r *http.Reque
 
 	// Validate platform
 	if platform != "windows" && platform != "macos" {
+		log.Printf("DOWNLOAD ERROR: Invalid platform %s for user %s", platform, user.Email)
 		writeErrorResponse(w, http.StatusBadRequest, "Invalid platform. Must be 'windows' or 'macos'")
 		return
 	}
 
+	log.Printf("DOWNLOAD DEBUG: Processing download request for user %s (ID: %s, Owned: %t, Serial: %s)", 
+		user.Email, user.ID.Hex(), user.Owned, user.SerialNumber)
+
 	// Process download request
-	downloadInfo, err := dh.downloadService.ProcessDownloadRequest(userID, productName, platform, serial, r)
+	downloadInfo, err := dh.downloadService.ProcessDownloadRequest(user.ID, productName, platform, serial, r)
 	if err != nil {
+		log.Printf("DOWNLOAD ERROR: Failed to process download for user %s: %v", user.Email, err)
 		// Check specific error types for appropriate HTTP status codes
 		switch err.Error() {
 		case "user not found":
@@ -117,6 +120,8 @@ func (dh *DownloadHandlers) DownloadProduct(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	log.Printf("DOWNLOAD SUCCESS: Serving file %s to user %s", downloadInfo.Filename, user.Email)
+
 	// Serve the file
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", downloadInfo.Filename))
 	w.Header().Set("Content-Type", "application/octet-stream")
@@ -128,21 +133,19 @@ func (dh *DownloadHandlers) DownloadProduct(w http.ResponseWriter, r *http.Reque
 // GetDownloadHistory returns user's download history
 func (dh *DownloadHandlers) GetDownloadHistory(w http.ResponseWriter, r *http.Request) {
 	// Get user from context (set by auth middleware)
-	userIDStr, ok := r.Context().Value("user_id").(string)
-	if !ok {
+	user := auth.GetUserFromContext(r.Context())
+	if user == nil {
+		log.Printf("DOWNLOAD ERROR: User not found in context for %s %s", r.Method, r.URL.Path)
 		writeErrorResponse(w, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
 
-	userID, err := primitive.ObjectIDFromHex(userIDStr)
-	if err != nil {
-		writeErrorResponse(w, http.StatusBadRequest, "Invalid user ID")
-		return
-	}
+	log.Printf("DOWNLOAD DEBUG: User %s requesting download history", user.Email)
 
 	// Get download history
-	downloads, err := dh.downloadService.GetUserDownloadHistory(userID)
+	downloads, err := dh.downloadService.GetUserDownloadHistory(user.ID)
 	if err != nil {
+		log.Printf("DOWNLOAD ERROR: Failed to get download history for user %s: %v", user.Email, err)
 		writeErrorResponse(w, http.StatusInternalServerError, "Failed to get download history: "+err.Error())
 		return
 	}

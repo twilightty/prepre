@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strings"
 
@@ -21,6 +22,7 @@ func AuthMiddleware(authService *AuthService) func(http.Handler) http.Handler {
 			// Get token from Authorization header
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
+				log.Printf("AUTH ERROR: Missing Authorization header for %s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
 				writeErrorResponse(w, http.StatusUnauthorized, "Authorization header required")
 				return
 			}
@@ -28,18 +30,23 @@ func AuthMiddleware(authService *AuthService) func(http.Handler) http.Handler {
 			// Extract token from "Bearer <token>"
 			tokenParts := strings.Split(authHeader, " ")
 			if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
+				log.Printf("AUTH ERROR: Invalid auth header format for %s %s from %s: %s", r.Method, r.URL.Path, r.RemoteAddr, authHeader)
 				writeErrorResponse(w, http.StatusUnauthorized, "Invalid authorization header format")
 				return
 			}
 
 			token := tokenParts[1]
+			log.Printf("AUTH DEBUG: Validating token for %s %s from %s (token: %s...)", r.Method, r.URL.Path, r.RemoteAddr, token[:10])
 
 			// Validate token
 			user, err := authService.ValidateToken(token)
 			if err != nil {
+				log.Printf("AUTH ERROR: Token validation failed for %s %s from %s: %v", r.Method, r.URL.Path, r.RemoteAddr, err)
 				writeErrorResponse(w, http.StatusUnauthorized, "Invalid or expired token")
 				return
 			}
+
+			log.Printf("AUTH SUCCESS: User %s authenticated for %s %s", user.Email, r.Method, r.URL.Path)
 
 			// Add user to request context
 			ctx := context.WithValue(r.Context(), UserContextKey, user)
