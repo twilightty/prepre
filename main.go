@@ -90,6 +90,7 @@ func main() {
 
 			// Payment routes (authenticated users)
 			r.Post("/payment/initiate", paymentHandlers.InitiatePayment)
+			r.Post("/payment/refresh", paymentHandlers.RefreshPayment)
 
 			// Download routes (authenticated users)  
 			r.Get("/download/{product_name}/{platform}", downloadHandlers.DownloadProduct)

@@ -316,3 +316,19 @@ func (ps *PaymentService) GetUserPaymentSessions(userID primitive.ObjectID) ([]*
 	
 	return sessions, nil
 }
+
+// GetUserById retrieves a user by their ID (for checking updated ownership status)
+func (ps *PaymentService) GetUserById(userID primitive.ObjectID) (*models.User, error) {
+	ctx := context.Background()
+	
+	var user models.User
+	err := ps.userCollection.FindOne(ctx, bson.M{"_id": userID}).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+	
+	return &user, nil
+}

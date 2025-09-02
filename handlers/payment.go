@@ -140,3 +140,43 @@ func (ph *PaymentHandler) GetUserPaymentSessions(w http.ResponseWriter, r *http.
 		"total":    len(sessions),
 	})
 }
+
+// RefreshPayment handles "I have paid" button - checks if user now has access
+func (ph *PaymentHandler) RefreshPayment(w http.ResponseWriter, r *http.Request) {
+	// Get user from context (set by auth middleware)
+	user := auth.GetUserFromContext(r.Context())
+	if user == nil {
+		log.Printf("PAYMENT ERROR: User not found in context for payment refresh")
+		writeErrorResponse(w, http.StatusUnauthorized, "User not authenticated")
+		return
+	}
+
+	log.Printf("PAYMENT DEBUG: User %s clicked 'I have paid' - checking ownership status", user.Email)
+
+	// Check user's current ownership status by refreshing from database
+	updatedUser, err := ph.paymentService.GetUserById(user.ID)
+	if err != nil {
+		log.Printf("PAYMENT ERROR: Failed to get updated user data for %s: %v", user.Email, err)
+		writeErrorResponse(w, http.StatusInternalServerError, "Failed to check account status")
+		return
+	}
+
+	response := map[string]interface{}{
+		"success": true,
+		"owned":   updatedUser.Owned,
+		"reload":  true,
+	}
+
+	if updatedUser.Owned {
+		response["message"] = "Payment confirmed! You now have access to all products."
+		response["redirect"] = "/dashboard"
+		log.Printf("PAYMENT SUCCESS: User %s payment confirmed - granting access", user.Email)
+	} else {
+		response["message"] = "Payment not yet confirmed. Please wait a moment and try again."
+		response["redirect"] = "/payment"
+		log.Printf("PAYMENT PENDING: User %s payment still pending", user.Email)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
