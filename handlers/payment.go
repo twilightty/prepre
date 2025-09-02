@@ -2,13 +2,16 @@ package handlers
 
 import (
 	"encoding/json"
-	"jinzmedia-atmt/models"
-	"jinzmedia-atmt/services"
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+
+	"jinzmedia-atmt/auth"
+	"jinzmedia-atmt/models"
+	"jinzmedia-atmt/services"
 )
 
 type PaymentHandler struct {
@@ -24,21 +27,19 @@ func NewPaymentHandler(paymentService *services.PaymentService) *PaymentHandler 
 // InitiatePayment creates a new payment session for the authenticated user
 func (ph *PaymentHandler) InitiatePayment(w http.ResponseWriter, r *http.Request) {
 	// Get user from context (set by auth middleware)
-	userIDStr, ok := r.Context().Value("user_id").(string)
-	if !ok {
+	user := auth.GetUserFromContext(r.Context())
+	if user == nil {
+		log.Printf("PAYMENT ERROR: User not found in context for payment initiation")
 		writeErrorResponse(w, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
 
-	userID, err := primitive.ObjectIDFromHex(userIDStr)
-	if err != nil {
-		writeErrorResponse(w, http.StatusBadRequest, "Invalid user ID")
-		return
-	}
+	log.Printf("PAYMENT DEBUG: User %s (ID: %s) initiating payment", user.Email, user.ID.Hex())
 
 	// Create payment session
-	paymentSession, err := ph.paymentService.InitiatePayment(userID)
+	paymentSession, err := ph.paymentService.InitiatePayment(user.ID)
 	if err != nil {
+		log.Printf("PAYMENT ERROR: Failed to initiate payment for user %s: %v", user.Email, err)
 		if err.Error() == "user not found" {
 			writeErrorResponse(w, http.StatusNotFound, "User not found")
 			return
@@ -55,6 +56,8 @@ func (ph *PaymentHandler) InitiatePayment(w http.ResponseWriter, r *http.Request
 		writeErrorResponse(w, http.StatusInternalServerError, "Failed to initiate payment: "+err.Error())
 		return
 	}
+
+	log.Printf("PAYMENT SUCCESS: Payment session created for user %s with code %s", user.Email, paymentSession.PaymentCode)
 
 	// Prepare response
 	response := models.InitiatePaymentResponse{
@@ -79,21 +82,19 @@ func (ph *PaymentHandler) GetPaymentStatus(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Get user from context (set by auth middleware)
-	userIDStr, ok := r.Context().Value("user_id").(string)
-	if !ok {
+	user := auth.GetUserFromContext(r.Context())
+	if user == nil {
+		log.Printf("PAYMENT ERROR: User not found in context for payment status check")
 		writeErrorResponse(w, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
 
-	userID, err := primitive.ObjectIDFromHex(userIDStr)
-	if err != nil {
-		writeErrorResponse(w, http.StatusBadRequest, "Invalid user ID")
-		return
-	}
+	log.Printf("PAYMENT DEBUG: User %s checking payment status for session %s", user.Email, sessionIDStr)
 
 	// Get payment session
 	paymentSession, err := ph.paymentService.GetPaymentSession(sessionID)
 	if err != nil {
+		log.Printf("PAYMENT ERROR: Failed to get payment session %s: %v", sessionIDStr, err)
 		if err.Error() == "payment session not found" {
 			writeErrorResponse(w, http.StatusNotFound, "Payment session not found")
 			return
@@ -103,7 +104,8 @@ func (ph *PaymentHandler) GetPaymentStatus(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Check if session belongs to the authenticated user
-	if paymentSession.UserID != userID {
+	if paymentSession.UserID != user.ID {
+		log.Printf("PAYMENT ERROR: User %s tried to access payment session %s belonging to another user", user.Email, sessionIDStr)
 		writeErrorResponse(w, http.StatusForbidden, "Unauthorized access to payment session")
 		return
 	}
@@ -115,21 +117,19 @@ func (ph *PaymentHandler) GetPaymentStatus(w http.ResponseWriter, r *http.Reques
 // GetUserPaymentSessions retrieves all payment sessions for the authenticated user
 func (ph *PaymentHandler) GetUserPaymentSessions(w http.ResponseWriter, r *http.Request) {
 	// Get user from context (set by auth middleware)
-	userIDStr, ok := r.Context().Value("user_id").(string)
-	if !ok {
+	user := auth.GetUserFromContext(r.Context())
+	if user == nil {
+		log.Printf("PAYMENT ERROR: User not found in context for payment sessions request")
 		writeErrorResponse(w, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
 
-	userID, err := primitive.ObjectIDFromHex(userIDStr)
-	if err != nil {
-		writeErrorResponse(w, http.StatusBadRequest, "Invalid user ID")
-		return
-	}
+	log.Printf("PAYMENT DEBUG: User %s requesting payment sessions", user.Email)
 
 	// Get payment sessions
-	sessions, err := ph.paymentService.GetUserPaymentSessions(userID)
+	sessions, err := ph.paymentService.GetUserPaymentSessions(user.ID)
 	if err != nil {
+		log.Printf("PAYMENT ERROR: Failed to get payment sessions for user %s: %v", user.Email, err)
 		writeErrorResponse(w, http.StatusInternalServerError, "Failed to get payment sessions: "+err.Error())
 		return
 	}
