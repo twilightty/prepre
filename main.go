@@ -44,6 +44,7 @@ func main() {
 	paymentHandlers := handlers.NewPaymentHandler(paymentService)
 	downloadHandlers := handlers.NewDownloadHandlers()
 	webhookHandlers := handlers.NewWebhookHandler(paymentService)
+	adminHandlers := handlers.NewAdminHandlers()
 
 	// Create router
 	r := chi.NewRouter()
@@ -108,6 +109,35 @@ func main() {
 
 		// Webhook routes (no authentication, but API key validation inside handler)
 		r.Post("/hooks/sepay", webhookHandlers.HandleSepayWebhook)
+
+		// Admin routes with authentication and role checks
+		r.Route("/admin", func(r chi.Router) {
+			// Admin login (no auth required)
+			r.Post("/login", adminHandlers.Login)
+
+			// Protected admin routes
+			r.Group(func(r chi.Router) {
+				r.Use(auth.AuthMiddleware(authService))
+				r.Use(auth.RequireAdmin())
+
+				// Dashboard
+				r.Get("/dashboard/stats", adminHandlers.GetDashboardStats)
+
+				// Analytics
+				r.Get("/analytics/workflows/stats", adminHandlers.GetWorkflowStats)
+				r.Get("/analytics/jobs/stats", adminHandlers.GetJobStats)
+				r.Get("/analytics/costs/stats", adminHandlers.GetCostStats)
+
+				// Jobs
+				r.Get("/jobs", adminHandlers.GetJobs)
+				r.Get("/jobs/{id}", adminHandlers.GetJob)
+
+				// Workflows
+				r.Get("/workflows", adminHandlers.GetWorkflows)
+				r.Post("/workflows", adminHandlers.CreateWorkflow)
+				r.Patch("/workflows/{id}", adminHandlers.UpdateWorkflow)
+			})
+		})
 	})
 
 	// Root endpoint
