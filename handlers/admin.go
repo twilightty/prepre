@@ -67,13 +67,7 @@ func (h *AdminHandlers) Login(w http.ResponseWriter, r *http.Request) {
 
 // GetDashboardStats returns aggregated dashboard statistics
 func (h *AdminHandlers) GetDashboardStats(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUserFromContext(r.Context())
-	if user == nil {
-		writeErrorResponse(w, http.StatusUnauthorized, "User not authenticated")
-		return
-	}
-
-	log.Printf("ADMIN DASHBOARD: User %s requesting dashboard stats", user.Email)
+	log.Printf("ADMIN DASHBOARD: Requesting dashboard stats")
 
 	stats, err := h.adminService.GetDashboardStats()
 	if err != nil {
@@ -90,14 +84,8 @@ func (h *AdminHandlers) GetDashboardStats(w http.ResponseWriter, r *http.Request
 
 // GetWorkflowStats returns workflow analytics
 func (h *AdminHandlers) GetWorkflowStats(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUserFromContext(r.Context())
-	if user == nil {
-		writeErrorResponse(w, http.StatusUnauthorized, "User not authenticated")
-		return
-	}
-
 	params := extractAnalyticsParams(r)
-	log.Printf("ADMIN ANALYTICS: User %s requesting workflow stats with params %+v", user.Email, params)
+	log.Printf("ADMIN ANALYTICS: Requesting workflow stats with params %+v", params)
 
 	stats, err := h.adminService.GetWorkflowStats(params)
 	if err != nil {
@@ -120,14 +108,8 @@ func (h *AdminHandlers) GetWorkflowStats(w http.ResponseWriter, r *http.Request)
 
 // GetJobStats returns job analytics
 func (h *AdminHandlers) GetJobStats(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUserFromContext(r.Context())
-	if user == nil {
-		writeErrorResponse(w, http.StatusUnauthorized, "User not authenticated")
-		return
-	}
-
 	params := extractAnalyticsParams(r)
-	log.Printf("ADMIN ANALYTICS: User %s requesting job stats with params %+v", user.Email, params)
+	log.Printf("ADMIN ANALYTICS: Requesting job stats with params %+v", params)
 
 	stats, err := h.adminService.GetJobStats(params)
 	if err != nil {
@@ -150,14 +132,8 @@ func (h *AdminHandlers) GetJobStats(w http.ResponseWriter, r *http.Request) {
 
 // GetCostStats returns cost analytics
 func (h *AdminHandlers) GetCostStats(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUserFromContext(r.Context())
-	if user == nil {
-		writeErrorResponse(w, http.StatusUnauthorized, "User not authenticated")
-		return
-	}
-
 	params := extractAnalyticsParams(r)
-	log.Printf("ADMIN ANALYTICS: User %s requesting cost stats with params %+v", user.Email, params)
+	log.Printf("ADMIN ANALYTICS: Requesting cost stats with params %+v", params)
 
 	stats, err := h.adminService.GetCostStats(params)
 	if err != nil {
@@ -180,14 +156,8 @@ func (h *AdminHandlers) GetCostStats(w http.ResponseWriter, r *http.Request) {
 
 // GetJobs returns paginated jobs list
 func (h *AdminHandlers) GetJobs(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUserFromContext(r.Context())
-	if user == nil {
-		writeErrorResponse(w, http.StatusUnauthorized, "User not authenticated")
-		return
-	}
-
 	params := extractJobsParams(r)
-	log.Printf("ADMIN JOBS: User %s requesting jobs list with params %+v", user.Email, params)
+	log.Printf("ADMIN JOBS: Requesting jobs list with params %+v", params)
 
 	jobs, err := h.adminService.GetJobs(params)
 	if err != nil {
@@ -210,19 +180,13 @@ func (h *AdminHandlers) GetJobs(w http.ResponseWriter, r *http.Request) {
 
 // GetJob returns job details by ID
 func (h *AdminHandlers) GetJob(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUserFromContext(r.Context())
-	if user == nil {
-		writeErrorResponse(w, http.StatusUnauthorized, "User not authenticated")
-		return
-	}
-
 	jobID := chi.URLParam(r, "id")
 	if jobID == "" {
 		writeErrorResponse(w, http.StatusBadRequest, "Job ID is required")
 		return
 	}
 
-	log.Printf("ADMIN JOB: User %s requesting job details for ID %s", user.Email, jobID)
+	log.Printf("ADMIN JOB: Requesting job details for ID %s", jobID)
 
 	job, err := h.adminService.GetJobByID(jobID)
 	if err != nil {
@@ -243,13 +207,7 @@ func (h *AdminHandlers) GetJob(w http.ResponseWriter, r *http.Request) {
 
 // GetWorkflows returns workflows list
 func (h *AdminHandlers) GetWorkflows(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUserFromContext(r.Context())
-	if user == nil {
-		writeErrorResponse(w, http.StatusUnauthorized, "User not authenticated")
-		return
-	}
-
-	log.Printf("ADMIN WORKFLOWS: User %s requesting workflows list", user.Email)
+	log.Printf("ADMIN WORKFLOWS: Requesting workflows list")
 
 	workflows, err := h.adminService.GetWorkflows()
 	if err != nil {
@@ -266,19 +224,13 @@ func (h *AdminHandlers) GetWorkflows(w http.ResponseWriter, r *http.Request) {
 
 // CreateWorkflow creates a new workflow
 func (h *AdminHandlers) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUserFromContext(r.Context())
-	if user == nil {
-		writeErrorResponse(w, http.StatusUnauthorized, "User not authenticated")
-		return
-	}
-
 	var req models.CreateWorkflowRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	log.Printf("ADMIN WORKFLOW: User %s creating workflow %s", user.Email, req.Name)
+	log.Printf("ADMIN WORKFLOW: Creating workflow %s", req.Name)
 
 	workflow, err := h.adminService.CreateWorkflow(&req)
 	if err != nil {
@@ -295,12 +247,6 @@ func (h *AdminHandlers) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
 
 // UpdateWorkflow updates an existing workflow
 func (h *AdminHandlers) UpdateWorkflow(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUserFromContext(r.Context())
-	if user == nil {
-		writeErrorResponse(w, http.StatusUnauthorized, "User not authenticated")
-		return
-	}
-
 	workflowID := chi.URLParam(r, "id")
 	if workflowID == "" {
 		writeErrorResponse(w, http.StatusBadRequest, "Workflow ID is required")
@@ -313,7 +259,7 @@ func (h *AdminHandlers) UpdateWorkflow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("ADMIN WORKFLOW: User %s updating workflow %s", user.Email, workflowID)
+	log.Printf("ADMIN WORKFLOW: Updating workflow %s", workflowID)
 
 	workflow, err := h.adminService.UpdateWorkflow(workflowID, &req)
 	if err != nil {
