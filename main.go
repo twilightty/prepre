@@ -18,6 +18,7 @@ import (
 	"jinzmedia-atmt/config"
 	"jinzmedia-atmt/database"
 	"jinzmedia-atmt/handlers"
+	"jinzmedia-atmt/services"
 )
 
 func main() {
@@ -34,9 +35,15 @@ func main() {
 	}
 	defer database.Disconnect()
 
+	// Initialize services
+	paymentService := services.NewPaymentService()
+	authService := auth.NewAuthService()
+
 	// Initialize handlers
 	authHandlers := handlers.NewAuthHandlers()
-	authService := auth.NewAuthService()
+	paymentHandlers := handlers.NewPaymentHandler(paymentService)
+	downloadHandlers := handlers.NewDownloadHandlers()
+	webhookHandlers := handlers.NewWebhookHandler(paymentService)
 
 	// Create router
 	r := chi.NewRouter()
@@ -80,6 +87,12 @@ func main() {
 			r.Get("/auth/profile", authHandlers.GetProfile)
 			r.Post("/auth/logout", authHandlers.Logout)
 
+			// Payment routes (authenticated users)
+			r.Post("/payment/initiate", paymentHandlers.InitiatePayment)
+
+			// Download routes (authenticated users)  
+			r.Get("/download/{product_name}/{platform}", downloadHandlers.DownloadProduct)
+
 			// Admin routes
 			r.Group(func(r chi.Router) {
 				r.Use(auth.RequireAdmin())
@@ -92,6 +105,9 @@ func main() {
 				// Add super admin-only routes here
 			})
 		})
+
+		// Webhook routes (no authentication, but API key validation inside handler)
+		r.Post("/hooks/sepay", webhookHandlers.HandleSepayWebhook)
 	})
 
 	// Root endpoint
