@@ -1,0 +1,4 @@
+@echo off
+echo ChatGPT for Windows - Demo Version
+echo This is a sample executable for testing purposes
+pause
